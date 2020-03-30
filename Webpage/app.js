@@ -35,8 +35,8 @@ var FSHADER_SOURCE =
 	//
 	"void main() {\n" +
 	"  vec3 diffuse = vec3(0,0,0);\n" +
-	"  vec3 normal = normalize(v_Normal);\n" +
-	// "  vec3 normal = v_Normal;\n" +
+	// "  vec3 normal = normalize(v_Normal);\n" +
+	"  vec3 normal = v_Normal;\n" +
 	"  for (int i = 0; i < 6; i++){\n" +
 	"    float lightDistance = length(lightPositions[i] - v_Position);\n" +
 	"    vec3 lightDirection = normalize(lightPositions[i] - v_Position);\n" +
@@ -56,7 +56,7 @@ var g_normalMatrix = new Matrix4(); // Coordinate transformation matrix for norm
 var lookAtVector = glMatrix.vec3.create();
 lookAtVector[0] = 13;
 lookAtVector[1] = 10;
-lookAtVector[2] = -13;
+lookAtVector[2] = 13;
 var origin = glMatrix.vec3.create();
 origin[0] = 0;
 origin[1] = 1;
@@ -68,6 +68,9 @@ var ANGLE_STEP = 3.0;
 var isChairShifted = false;
 var isTableShifted = false;
 
+// for colors of each object
+var colors = new Float32Array(54);
+
 // Lighting
 var lightBulbLightColor1 = 0;
 var lightBulbLightColor2 = 0;
@@ -76,6 +79,18 @@ var lightBulbLightColor4 = 0;
 
 var windowLightColor = 0;
 var tvLightColor = 0;
+
+//  for the ticking clock
+var rotateArm = 0;
+
+// angle of swing in degrees either side of light
+var reverse = false;
+var currentSwing = 0;
+var vec = glMatrix.vec3.create();
+var newOrigin = glMatrix.vec3.create();
+newOrigin[0] = 0;
+newOrigin[1] = 10;
+newOrigin[2] = 0;
 
 function main() {
 	// Retrieve <canvas> element
@@ -124,29 +139,32 @@ function main() {
 	gl.uniformMatrix4fv(u_ViewMatrix, false, viewMatrix.elements);
 	gl.uniformMatrix4fv(u_ProjMatrix, false, projMatrix.elements);
 
-	// set the lights
+	// // set the lights
+	// front
 	lightBulbLight1 = gl.getUniformLocation(gl.program, "lightPositions[0]");
 	lightBulbLightColor1 = gl.getUniformLocation(gl.program, "lightColors[0]");
 	gl.uniform3f(lightBulbLightColor1, 1.0, 1.0, 1.0);
-	gl.uniform3f(lightBulbLight1, 0.3, 7.8, 0.3);
+	gl.uniform3f(lightBulbLight1, 0, 6, 1);
+	// back
 	lightBulbLight2 = gl.getUniformLocation(gl.program, "lightPositions[1]");
 	lightBulbLightColor2 = gl.getUniformLocation(gl.program, "lightColors[1]");
 	gl.uniform3f(lightBulbLightColor2, 1.0, 1.0, 1.0);
-	gl.uniform3f(lightBulbLight2, 0.3, 7.8, -0.3);
+	gl.uniform3f(lightBulbLight2, 0, 6, -1);
+	// left
 	lightBulbLight3 = gl.getUniformLocation(gl.program, "lightPositions[2]");
 	lightBulbLightColor3 = gl.getUniformLocation(gl.program, "lightColors[2]");
 	gl.uniform3f(lightBulbLightColor3, 1.0, 1.0, 1.0);
-	gl.uniform3f(lightBulbLight3, -0.3, 7.8, 0.3);
+	gl.uniform3f(lightBulbLight3, -1, 6, 0);
+	// right
 	lightBulbLight4 = gl.getUniformLocation(gl.program, "lightPositions[3]");
 	lightBulbLightColor4 = gl.getUniformLocation(gl.program, "lightColors[3]");
 	gl.uniform3f(lightBulbLightColor4, 1.0, 1.0, 1.0);
-	gl.uniform3f(lightBulbLight4, -0.3, 7.8, -0.3);
+	gl.uniform3f(lightBulbLight4, 1, 6, 0);
 
-	// windowLight = gl.getUniformLocation(gl.program, "lightPositions[4]");
-	// windowLightColor = gl.getUniformLocation(gl.program, "lightColors[4]");
-	// gl.uniform3f(windowLightColor, 1.0, 1.0, 1.0);
-	// gl.uniform3f(windowLight, -12, 2, 0);
-
+	windowLight = gl.getUniformLocation(gl.program, "lightPositions[4]");
+	windowLightColor = gl.getUniformLocation(gl.program, "lightColors[4]");
+	gl.uniform3f(windowLightColor, 1.0, 1.0, 1.0);
+	gl.uniform3f(windowLight, -12, 2, -1);
 	tvLight = gl.getUniformLocation(gl.program, "lightPositions[5]");
 	tvLightColor = gl.getUniformLocation(gl.program, "lightColors[5]");
 	gl.uniform3f(tvLightColor, 1.0, 1.0, 1.0);
@@ -236,6 +254,15 @@ function keydown(ev, gl, u_ModelMatrix, u_NormalMatrix) {
 			}
 			break;
 
+		// ticking clock
+		case 82:
+			if (rotateArm == 7) {
+				rotateArm = 0;
+			} else {
+				rotateArm++;
+			}
+			break;
+
 		default:
 			return; // Skip drawing at no effective action
 	}
@@ -264,7 +291,7 @@ function initVertexBuffers(gl) {
      0.5,-0.5,-0.5,  -0.5,-0.5,-0.5,  -0.5, 0.5,-0.5,   0.5, 0.5,-0.5  // v4-v7-v6-v5 back
   ]);
   
-  var normals = new Float32Array([    // Normal
+  var normals = new Float32Array([    // Normals
     0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,   0.0, 0.0, 1.0,  // v0-v1-v2-v3 front
     1.0, 0.0, 0.0,   1.0, 0.0, 0.0,   1.0, 0.0, 0.0,   1.0, 0.0, 0.0,  // v0-v3-v4-v5 right
     0.0, 1.0, 0.0,   0.0, 1.0, 0.0,   0.0, 1.0, 0.0,   0.0, 1.0, 0.0,  // v0-v5-v6-v1 up
@@ -514,11 +541,11 @@ function drawRoom(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY, 
 	modelMatrix = popMatrix();
 }
 
-function drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY, shiftZ) {
+function drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY, shiftZ, r, g, b) {
 	// Rotate, and then translate
 	modelMatrix.setTranslate(0, 0, 0); // Translation (No translation is supported here)
 
-	setColorOfBox(gl, colors, 1, 1, 1);
+	setColorOfBox(gl, colors, r, g, b);
 
 	pushMatrix(modelMatrix);
 	modelMatrix.translate(-14.9, 2, 0); // Translation
@@ -570,26 +597,33 @@ function drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY
 }
 
 function drawLight(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY, shiftZ) {
-	// Rotate, and then translate
-	modelMatrix.setTranslate(0, 0, 0); // Translation (No translation is supported here)
-
+	setColorOfBox(gl, colors, 0, 0, 0);
+	// top of light
 	pushMatrix(modelMatrix);
 	modelMatrix.translate(0, 10, 0); // Translation
-	modelMatrix.scale(5, 0.1, 5); // Scale
+	modelMatrix.scale(0.5, 0.1, 0.5); // Scale
 	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
 	modelMatrix = popMatrix();
 
-	pushMatrix(modelMatrix);
-	modelMatrix.translate(0, 9, 0); // Translation
-	modelMatrix.scale(0.05, 2, 0.05); // Scale
-	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
-	modelMatrix = popMatrix();
-
-	setColorOfBox(gl, colors, 1, 1, 1);
 	// lightbulb
+	setColorOfBox(gl, colors, 1, 1, 1);
 	pushMatrix(modelMatrix);
-	modelMatrix.translate(0, 8, 0); // Translation
+	modelMatrix.translate(shiftX, shiftY, shiftZ); // Translation
+	modelMatrix.rotate(currentSwing, 0, 0, 1); // Rotate along z axis/
 	modelMatrix.scale(0.25, 0.25, 0.25); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+}
+
+function drawLightArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors) {
+	setColorOfBox(gl, colors, 0, 0, 0);
+	pushMatrix(modelMatrix);
+	var moveAlongX = 2 * Math.sin(glMatrix.glMatrix.toRadian(currentSwing));
+	var moveAlongY = 2 - 2 * Math.cos(glMatrix.glMatrix.toRadian(currentSwing));
+
+	modelMatrix.translate(0 + moveAlongX, 8 + moveAlongY, 0); // Translation
+	modelMatrix.rotate(currentSwing, 0, 0, 1); // Rotate along z axis
+	modelMatrix.scale(0.05, 4, 0.05); // Scale
 	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
 	modelMatrix = popMatrix();
 }
@@ -764,6 +798,64 @@ function drawAllTables(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shi
 	drawTable(gl, u_ModelMatrix, u_NormalMatrix, n, xs, ys, zs);
 }
 
+function drawClock(gl, u_ModelMatrix, u_NormalMatrix, n, colors, shiftX, shiftY, shiftZ) {
+	// Rotate, and then translate
+	modelMatrix.setTranslate(0, 0, 0); // Translation (No translation is supported here)
+
+	// make the face
+	setColorOfBox(gl, colors, 1, 1, 1);
+
+	pushMatrix(modelMatrix);
+	modelMatrix.translate(14.9, 2, 0); // Translation
+	modelMatrix.scale(0.1, 4, 4); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+
+	// draw the borders
+	setColorOfBox(gl, colors, 0.627, 0.227, 0.054);
+
+	// top
+	pushMatrix(modelMatrix);
+	modelMatrix.translate(14.8, 4, 0); // Translation
+	modelMatrix.scale(0.1, 0.3, 4); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+
+	// bottom
+	pushMatrix(modelMatrix);
+	modelMatrix.translate(14.8, 0, 0); // Translation
+	modelMatrix.scale(0.1, 0.3, 4); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+
+	// left
+	pushMatrix(modelMatrix);
+	modelMatrix.rotate(90, 1, 0, 0); // Rotate along x axis
+	modelMatrix.translate(14.8, -2, -2); // Translation
+	modelMatrix.scale(0.1, 0.3, 4); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+
+	// right
+	pushMatrix(modelMatrix);
+	modelMatrix.rotate(90, 1, 0, 0); // Rotate along x axis
+	modelMatrix.translate(14.8, 2, -2); // Translation
+	modelMatrix.scale(0.1, 0.3, 4); // Scale
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+}
+
+function drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, xlen, ylen, zlen, shiftX, shiftY, shiftZ) {
+	pushMatrix(modelMatrix);
+	setColorOfBox(gl, colors, 0, 0, 0);
+
+	modelMatrix.setTranslate(14.7 + shiftX, 2 + shiftY, 0 + shiftZ); // position against wall
+	modelMatrix.scale(0.1 + xlen, 0.1 + ylen, 0.1 + zlen); // Scale
+
+	drawbox(gl, u_ModelMatrix, u_NormalMatrix, n);
+	modelMatrix = popMatrix();
+}
+
 // the main drawing function
 function draw(gl, u_ModelMatrix, u_NormalMatrix) {
 	return function() {
@@ -773,24 +865,38 @@ function draw(gl, u_ModelMatrix, u_NormalMatrix) {
 		modelMatrix.setTranslate(0, 0, 0);
 		// Pass the model matrix to the uniform variable
 		gl.uniformMatrix4fv(u_ModelMatrix, false, modelMatrix.elements);
+		var angle = glMatrix.glMatrix.toRadian(currentSwing);
+		// change position of lights
+		vec[0] = 0;
+		vec[1] = 6;
+		vec[2] = 1;
+		glMatrix.vec3.rotateZ(vec, vec, newOrigin, angle);
+		gl.uniform3f(lightBulbLight1, vec[0], vec[1], vec[2]);
+		vec[0] = 0;
+		vec[1] = 6;
+		vec[2] = -1;
+		glMatrix.vec3.rotateZ(vec, vec, newOrigin, angle);
+		gl.uniform3f(lightBulbLight2, vec[0], vec[1], vec[2]);
+		vec[0] = -1;
+		vec[1] = 6;
+		vec[2] = 0;
+		glMatrix.vec3.rotateZ(vec, vec, newOrigin, angle);
+		gl.uniform3f(lightBulbLight3, vec[0], vec[1], vec[2]);
+		vec[0] = 1;
+		vec[1] = 6;
+		vec[2] = 0;
+		glMatrix.vec3.rotateZ(vec, vec, newOrigin, angle);
+		gl.uniform3f(lightBulbLight4, vec[0], vec[1], vec[2]);
 
 		var n = initVertexBuffers(gl);
 		if (n < 0) {
 			console.log("Failed to set the vertex information");
 			return;
 		}
-		var colors = new Float32Array(54);
 
-		// the variables we use to posiotion the objects
-		var shiftX = 0;
-		var shiftY = 0;
-		var shiftZ = 0;
-
-		// Room and Window and light and tv
+		// Room and light and tv
 		drawRoom(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0);
-		drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0);
 		drawTVandTable(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 12);
-		drawLight(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0);
 
 		// Chairs
 		if (typeof draw.counter_C == "undefined") {
@@ -830,6 +936,66 @@ function draw(gl, u_ModelMatrix, u_NormalMatrix) {
 		}
 		drawAllTables(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, draw.counter_T);
 
+		// draw the clock
+		drawClock(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0);
+		// draw the arm of the clock
+		if (rotateArm == 0) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 1.6, 0, 0, 0.8, 0);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0, 0, 0);
+			gl.uniform3f(windowLightColor, 0, 0, 0);
+		} else if (rotateArm == 1) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 1.6, 0, 0, 0.8);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.486, 0.49, 0.368);
+			gl.uniform3f(windowLightColor, 0.486, 0.49, 0.368);
+		} else if (rotateArm == 2) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, -1.7, 0, 0, -0.8, 0);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.917, 0.933, 0.564);
+			gl.uniform3f(windowLightColor, 0.917, 0.933, 0.564);
+		} else if (rotateArm == 3) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, -1.6, 0, 0, -0.8);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.945, 0.952, 0.764);
+			gl.uniform3f(windowLightColor, 0.945, 0.952, 0.764);
+		} else if (rotateArm == 4) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 1.6, 0, 0, 0.8, 0);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 1, 1, 1);
+			gl.uniform3f(windowLightColor, 1.0, 1.0, 1.0);
+		}
+		//////
+		else if (rotateArm == 5) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 1.6, 0, 0, 0.8);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.945, 0.952, 0.764);
+			gl.uniform3f(windowLightColor, 0.945, 0.952, 0.764);
+		} else if (rotateArm == 6) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, -1.7, 0, 0, -0.8, 0);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.917, 0.933, 0.564);
+			gl.uniform3f(windowLightColor, 0.917, 0.933, 0.564);
+		} else if (rotateArm == 7) {
+			drawArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, -1.6, 0, 0, -0.8);
+			drawWindow(gl, u_ModelMatrix, u_NormalMatrix, n, colors, 0, 0, 0, 0.486, 0.49, 0.368);
+			gl.uniform3f(windowLightColor, 0.486, 0.49, 0.368);
+		}
+
 		requestAnimationFrame(draw(gl, u_ModelMatrix, u_NormalMatrix));
+
+		// draw swing light
+		if (currentSwing == 70) {
+			reverse = true;
+		} else if (currentSwing == -70) {
+			reverse = false;
+		}
+		if (reverse == true) {
+			currentSwing--;
+		} else if (reverse == false) {
+			currentSwing++;
+		}
+
+		/////////////////////////////////////////////////////////////////////////////////
+		// change bulb position
+		vec[0] = 0;
+		vec[1] = 6;
+		vec[2] = 0;
+		glMatrix.vec3.rotateZ(vec, vec, newOrigin, angle);
+		drawLight(gl, u_ModelMatrix, u_NormalMatrix, n, colors, vec[0], vec[1], vec[2]);
+		drawLightArm(gl, u_ModelMatrix, u_NormalMatrix, n, colors);
 	};
 }
